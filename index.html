@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1f6f5c">
+<title>Words 1–6</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1d2421;--mut:#6b7570;--acc:#1f6f5c;--line:#e2ded4;--bad:#b5483a}
+@media(prefers-color-scheme:dark){:root{--bg:#141816;--card:#1e2421;--ink:#ece9e1;--mut:#9aa39e;--acc:#4db596;--line:#303a35;--bad:#e08072}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif;padding-bottom:72px}
+main{max-width:560px;margin:0 auto;padding:16px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line)}
+nav button{flex:1;padding:14px 4px;border:0;background:none;color:var(--mut);font:inherit;font-size:14px}
+nav button.on{color:var(--acc);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+h2{margin:0 0 10px;font-size:20px}.mut{color:var(--mut);font-size:14px}
+.word{font-size:34px;font-weight:700;text-align:center;margin:18px 0}
+button.b{border:0;border-radius:10px;padding:12px 14px;font:inherit;background:var(--acc);color:#fff;cursor:pointer}
+button.g{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+textarea,select,input{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+textarea{min-height:90px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.cell{aspect-ratio:1;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--mut)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--acc)}
+.hide{display:none}
+</style></head><body>
+<main id="app"></main>
+<nav id="nav"></nav>
+<script>
+// Слова юнитов. Формат: UNITS["книга.юнит"] = { words: [...], prompts: [...] }
+// Остальные юниты можно добавить в приложении: Настройки → Импорт слов.
+window.UNITS = {
+  "1.1": {
+    words: ["afraid","agree","angry","arrive","attack","bottom","clever","cruel","finally","hide","hunt","lot","middle","moment","pleased","promise","reply","safe","trick","well"],
+    prompts: [
+      "Tell about a time you were afraid. What did you do? How did you feel when you were finally safe?",
+      "Do you agree that clever people are always successful? Why or why not?",
+      "Describe a promise you made. Did you keep it?",
+      "Retell the story from the unit in 5 sentences, using hide, hunt, trick, attack."
+    ],
+    notes: {
+      afraid: "afraid of", agree: "agree with (человек) / agree to (план)", angry: "angry at/with",
+      arrive: "arrive at (место) / in (город)", reply: "reply to", trick: "ещё и глагол: to trick someone",
+      safe: "ещё и существительное: сейф", well: "ещё и прилагательное: I don't feel well",
+      lot: "a lot of / lots of", moment: "at the moment", middle: "in the middle of", bottom: "at the bottom of", promise: "keep a promise"
+    }
+  }
+};
+
+</script>
+<script>
+const $=s=>document.querySelector(s);
+const KEY="words16";
+let S=JSON.parse(localStorage.getItem(KEY)||'{"cards":{},"sel":"1.1","sent":{},"imp":{}}');
+const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+const U=()=>Object.assign({},window.UNITS,S.imp);
+const today=()=>Math.floor(Date.now()/864e5);
+let tab="cards",cur=null,shown=false,rec=null;
+
+function card(id){return S.cards[id]||(S.cards[id]={ef:2.5,n:0,int:0,due:0,seen:0})}
+function grade(id,q){ // q: 0 забыл, 3 трудно, 4 хорошо, 5 легко
+  const c=card(id);c.seen++;
+  if(q<3){c.n=0;c.int=1}else{c.n++;c.int=c.n==1?1:c.n==2?3:Math.round(c.int*c.ef)}
+  c.ef=Math.max(1.3,c.ef+0.1-(5-q)*(0.08+(5-q)*0.02));
+  c.due=today()+(q<3?0:c.int);save();
+}
+function dueList(){
+  const u=U()[S.sel];if(!u)return[];
+  return u.words.map(w=>S.sel+":"+w).filter(id=>(S.cards[id]?.due??0)<=today()||!S.cards[id]);
+}
+function nav(){
+  const t={cards:"Карточки",speak:"Речь",prog:"Прогресс",set:"Слова"};
+  $("#nav").innerHTML=Object.entries(t).map(([k,v])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';cur=null;render()">${v}</button>`).join("");
+}
+function unitSelect(){
+  const opts=Object.keys(U()).sort((a,b)=>a.localeCompare(b,0,{numeric:true})).map(k=>{const[b,n]=k.split(".");return`<option value="${k}" ${k==S.sel?'selected':''}>Том ${b}, юнит ${n}</option>`}).join("");
+  return`<select onchange="S.sel=this.value;save();cur=null;render()">${opts}</select>`;
+}
+function render(){nav();({cards:rCards,speak:rSpeak,prog:rProg,set:rSet})[tab]()}
+
+function rCards(){
+  const list=dueList(),u=U()[S.sel];
+  if(!cur||!list.includes(cur))cur=list[0]||null,shown=false;
+  let h=unitSelect()+`<p class="mut">К повторению: ${list.length} из ${u?u.words.length:0}</p>`;
+  if(!cur){h+=`<div class="card"><h2>На сегодня всё</h2><p class="mut">Выберите другой юнит или возвращайтесь завтра.</p></div>`}
+  else{
+    const w=cur.split(":")[1],note=u.notes?.[w]||"";
+    h+=`<div class="card"><div class="word">${w}</div>
+    <textarea id="sent" placeholder="Ваше предложение со словом ${w}">${S.sent[cur]||""}</textarea>
+    ${shown?`<p class="mut">${note?"Подсказка: "+note:"Вспомните перевод, другую часть речи и предлог."}</p>
+    <div class="row"><button class="b g" onclick="gr(0)">Забыл</button><button class="b g" onclick="gr(3)">Трудно</button><button class="b" onclick="gr(4)">Хорошо</button><button class="b" onclick="gr(5)">Легко</button></div>`
+    :`<button class="b" style="width:100%;margin-top:10px" onclick="shown=true;keep();render()">Показать подсказку</button>`}</div>`;
+  }
+  $("#app").innerHTML=h;
+}
+function keep(){const t=$("#sent");if(t&&cur){S.sent[cur]=t.value;save()}}
+function gr(q){keep();grade(cur,q);cur=null;render()}
+
+function rSpeak(){
+  const u=U()[S.sel],p=u?.prompts||[];
+  const q=p.length?p[Math.floor(Math.random()*p.length)]:"Для этого юнита ещё нет вопросов. Скажите 3 предложения с любыми словами юнита.";
+  $("#app").innerHTML=unitSelect()+`<div class="card"><h2>Говорение</h2><p>${q}</p><p class="mut">Ответьте 2–3 предложениями вслух.</p>
+  <div class="row"><button class="b" id="r" onclick="toggleRec()">● Запись</button><button class="b g" onclick="render()">Другой вопрос</button></div>
+  <audio id="pl" controls class="hide" style="width:100%;margin-top:12px"></audio></div>`;
+}
+async function toggleRec(){
+  const b=$("#r");
+  if(rec&&rec.state=="recording"){rec.stop();b.textContent="● Запись";return}
+  try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];
+    rec=new MediaRecorder(st);rec.ondataavailable=e=>ch.push(e.data);
+    rec.onstop=()=>{st.getTracks().forEach(t=>t.stop());const a=$("#pl");a.src=URL.createObjectURL(new Blob(ch));a.classList.remove("hide");a.play()};
+    rec.start();b.textContent="■ Стоп"}catch(e){alert("Нет доступа к микрофону")}
+}
+
+function rProg(){
+  const all=U();let h="";
+  for(let b=1;b<=6;b++){
+    let words=0,seen=0,cells="";
+    for(let n=1;n<=30;n++){
+      const u=all[b+"."+n];let k=0;
+      if(u){words+=u.words.length;u.words.forEach(w=>{if(S.cards[b+"."+n+":"+w]?.n>=2){k++;seen++}})}
+      const pct=u?k/u.words.length:0;
+      cells+=`<div class="cell" style="${u?`background:rgba(31,111,92,${0.1+pct*0.7})`:''}">${n}</div>`;
+    }
+    h+=`<div class="card"><h2>Том ${b}</h2><div class="bar"><i style="width:${words?seen/words*100:0}%"></i></div><p class="mut">Выучено ${seen} из ${words||"?"} слов (загружено)</p><div class="grid">${cells}</div></div>`;
+  }
+  $("#app").innerHTML=h;
+}
+
+function rSet(){
+  $("#app").innerHTML=`<div class="card"><h2>Импорт слов</h2>
+  <p class="mut">По одной строке на юнит: <b>том.юнит: слово, слово, ...</b><br>Например: 1.2: apple, bridge, careful</p>
+  <textarea id="imp" placeholder="1.2: ..."></textarea>
+  <div class="row" style="margin-top:8px"><button class="b" onclick="doImp()">Добавить</button><button class="b g" onclick="exp()">Экспорт CSV</button></div></div>
+  <div class="card"><button class="b g" style="width:100%" onclick="if(confirm('Сбросить прогресс?')){S.cards={};save();render()}">Сбросить прогресс</button></div>`;
+}
+function doImp(){
+  let n=0;
+  $("#imp").value.split("\n").forEach(l=>{
+    const m=l.match(/^\s*(\d)\.(\d{1,2})\s*:\s*(.+)$/);
+    if(m&&m[1]>=1&&m[1]<=6&&m[2]>=1&&m[2]<=30){
+      S.imp[m[1]+"."+m[2]]={words:m[3].split(/[,;]/).map(x=>x.trim().toLowerCase()).filter(Boolean),prompts:[],notes:{}};n++}
+  });
+  save();alert("Добавлено юнитов: "+n);render();
+}
+function exp(){
+  const rows=["word,unit,your_sentence"];
+  for(const[k,u]of Object.entries(U()))u.words.forEach(w=>rows.push(`${w},${k},"${(S.sent[k+":"+w]||"").replace(/"/g,'""')}"`));
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));a.download="words.csv";a.click();
+}
+render();
+</script></body></html>
